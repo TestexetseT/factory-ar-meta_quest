@@ -5,22 +5,21 @@
     <title>工場DX - 最終調整版</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <style>
-        /* 画面左上に常に表示されるデバッグパネル */
+        /* Questの画面に直接表示されるパネルの設定 */
         #debug-ui {
             position: absolute;
             top: 20px;
             left: 20px;
-            z-index: 1000;
             background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 20px;
             font-family: sans-serif;
-            border: 2px solid #007bff;
-            border-radius: 10px;
-            pointer-events: none;
-            font-size: 18px;
+            border: 3px solid #007bff;
+            border-radius: 15px;
+            font-size: 24px;
+            z-index: 100; /* 最前面へ */
         }
-        .status-ok { color: #00ff00; font-weight: bold; }
+        .ok { color: #00ff00; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -29,7 +28,7 @@
         <div>🔧 工場DX プロトタイプ</div>
         <hr>
         <div id="status">状態: 起動待ち</div>
-        <div id="hit-status">床認識: 準備中...</div>
+        <div id="hit-status">床認識: スキャン中...</div>
     </div>
 
     <a-scene 
@@ -41,12 +40,12 @@
         <a-sky visible="false"></a-sky>
 
         <a-entity id="reticle" visible="false">
-            <a-ring color="#00ff00" radius-inner="0.08" radius-outer="0.12" rotation="-90 0 0"></a-ring>
+            <a-ring color="#00ff00" radius-inner="0.1" radius-outer="0.14" rotation="-90 0 0"></a-ring>
         </a-entity>
 
         <a-entity id="factory-content" visible="false">
-            <a-box color="red" width="0.4" height="1.5" depth="0.4" opacity="0.8" position="0 0.75 0"></a-box>
-            <a-text value="SHELF A" position="0 1.7 0" align="center" width="6"></a-text>
+            <a-box color="red" width="0.4" height="1.6" depth="0.4" opacity="0.6" position="0 0.8 0"></a-box>
+            <a-text value="SHELF A" position="0 1.8 0" align="center" width="6"></a-text>
         </a-entity>
 
         <a-entity camera></a-entity>
@@ -60,10 +59,9 @@
         const scene = document.querySelector('a-scene');
         let hitTestSource = null;
 
-        // ARセッション開始
         scene.addEventListener('enter-vr', () => {
             if (scene.is('ar-mode')) {
-                statusEl.innerHTML = '状態: <span class="status-ok">ARモード実行中</span>';
+                statusEl.innerHTML = '状態: <span class="ok">AR実行中</span>';
                 
                 const session = scene.xrSession;
                 session.requestReferenceSpace('viewer').then((space) => {
@@ -72,20 +70,17 @@
                     });
                 });
 
-                // トリガー（セレクトボタン）で設置
+                // トリガーで設置
                 session.addEventListener('select', () => {
                     if (reticle.getAttribute('visible')) {
                         content.setAttribute('position', reticle.getAttribute('position'));
                         content.setAttribute('visible', true);
-                        statusEl.innerText = '状態: 棚を設置しました';
+                        statusEl.innerText = '状態: 設置完了！';
                     }
                 });
-            } else {
-                statusEl.innerText = '状態: VRモード（ARではありません）';
             }
         });
 
-        // 床認識ループ
         scene.addEventListener('render-target-loaded', () => {
             scene.renderer.setAnimationLoop((time, frame) => {
                 if (!frame || !hitTestSource) return;
@@ -100,7 +95,7 @@
                     reticle.setAttribute('position', pose.transform.position);
                     reticle.object3D.quaternion.copy(pose.transform.orientation);
                     
-                    hitStatusEl.innerHTML = '床認識: <span class="status-ok">床を検出しました！</span>';
+                    hitStatusEl.innerHTML = '床認識: <span class="ok">床を見つけました！</span>';
                 } else {
                     reticle.setAttribute('visible', false);
                     hitStatusEl.innerText = '床認識: 床を探しています...';
