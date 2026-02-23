@@ -2,60 +2,90 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>工場DX - デバッグ版</title>
+    <title>工場DX - 最終調整版</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+        /* 画面左上に常に表示されるデバッグパネル */
+        #debug-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            font-family: sans-serif;
+            border: 2px solid #007bff;
+            border-radius: 10px;
+            pointer-events: none;
+            font-size: 18px;
+        }
+        .status-ok { color: #00ff00; font-weight: bold; }
+    </style>
 </head>
-<body style="margin: 0; overflow: hidden;">
+<body>
+
+    <div id="debug-ui">
+        <div>🔧 工場DX プロトタイプ</div>
+        <hr>
+        <div id="status">状態: 起動待ち</div>
+        <div id="hit-status">床認識: 準備中...</div>
+    </div>
+
     <a-scene 
-        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay, spatial-tracking;"
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay, spatial-tracking; overlayElement: #debug-ui;"
+        xr-mode-ui="enterAREnabled: true; enterVREnabled: false; XRMode: ar;"
         renderer="alpha: true; antialias: true;"
-        xr-mode-ui="enabled: true">
+        background="transparent: true">
 
         <a-sky visible="false"></a-sky>
-
-        <a-text id="statusText" value="Status: Waiting for AR..." 
-                position="0 1.5 -1" align="center" color="yellow" width="3"></a-text>
 
         <a-entity id="reticle" visible="false">
             <a-ring color="#00ff00" radius-inner="0.08" radius-outer="0.12" rotation="-90 0 0"></a-ring>
         </a-entity>
 
         <a-entity id="factory-content" visible="false">
-            <a-box color="red" width="0.4" height="1.5" depth="0.4" opacity="0.7" position="1 0.75 -2"></a-box>
-            <a-text value="SHELF A" position="1 1.7 -2" align="center"></a-text>
+            <a-box color="red" width="0.4" height="1.5" depth="0.4" opacity="0.8" position="0 0.75 0"></a-box>
+            <a-text value="SHELF A" position="0 1.7 0" align="center" width="6"></a-text>
         </a-entity>
 
         <a-entity camera></a-entity>
     </a-scene>
 
     <script>
-        const statusText = document.querySelector('#statusText');
+        const statusEl = document.querySelector('#status');
+        const hitStatusEl = document.querySelector('#hit-status');
         const reticle = document.querySelector('#reticle');
         const content = document.querySelector('#factory-content');
         const scene = document.querySelector('a-scene');
         let hitTestSource = null;
 
+        // ARセッション開始
         scene.addEventListener('enter-vr', () => {
-            if (!scene.is('ar-mode')) return;
-            statusText.setAttribute('value', 'Status: Scanning floor...');
-
-            const session = scene.xrSession;
-            session.requestReferenceSpace('viewer').then((space) => {
-                session.requestHitTestSource({ space: space }).then((source) => {
-                    hitTestSource = source;
-                    statusText.setAttribute('value', 'Status: Look at floor');
+            if (scene.is('ar-mode')) {
+                statusEl.innerHTML = '状態: <span class="status-ok">ARモード実行中</span>';
+                
+                const session = scene.xrSession;
+                session.requestReferenceSpace('viewer').then((space) => {
+                    session.requestHitTestSource({ space: space }).then((source) => {
+                        hitTestSource = source;
+                    });
                 });
-            });
 
-            session.addEventListener('select', () => {
-                if (reticle.getAttribute('visible')) {
-                    content.setAttribute('position', reticle.getAttribute('position'));
-                    content.setAttribute('visible', true);
-                    statusText.setAttribute('value', 'Status: Placed!');
-                }
-            });
+                // トリガー（セレクトボタン）で設置
+                session.addEventListener('select', () => {
+                    if (reticle.getAttribute('visible')) {
+                        content.setAttribute('position', reticle.getAttribute('position'));
+                        content.setAttribute('visible', true);
+                        statusEl.innerText = '状態: 棚を設置しました';
+                    }
+                });
+            } else {
+                statusEl.innerText = '状態: VRモード（ARではありません）';
+            }
         });
 
+        // 床認識ループ
         scene.addEventListener('render-target-loaded', () => {
             scene.renderer.setAnimationLoop((time, frame) => {
                 if (!frame || !hitTestSource) return;
@@ -70,12 +100,10 @@
                     reticle.setAttribute('position', pose.transform.position);
                     reticle.object3D.quaternion.copy(pose.transform.orientation);
                     
-                    // 床が見つかっている間だけ表示
-                    if(statusText.getAttribute('value').includes('Scanning')) {
-                        statusText.setAttribute('value', 'Status: Floor Found! Trigger to place');
-                    }
+                    hitStatusEl.innerHTML = '床認識: <span class="status-ok">床を検出しました！</span>';
                 } else {
                     reticle.setAttribute('visible', false);
+                    hitStatusEl.innerText = '床認識: 床を探しています...';
                 }
             });
         });
